@@ -9,13 +9,21 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-#if !FOUNDATION_FRAMEWORK
-public struct URLResourceKey {}
-#endif
 
 #if FOUNDATION_FRAMEWORK
 internal import _ForSwiftFoundation
 internal import CoreFoundation_Private.CFURL
+#endif
+
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+internal import _CShims
+#elseif os(Windows)
+import CRT
+import WinSDK
+#endif
 
 /// URLs to file system resources support the properties defined below.
 ///
@@ -55,11 +63,19 @@ public struct URLResourceValues {
     }
 
     private func _get(_ key: URLResourceKey) -> Bool? {
+        #if FOUNDATION_FRAMEWORK
         return (_values[key] as? NSNumber)?.boolValue
+        #else
+        return _values[key] as? Bool
+        #endif
     }
 
     private func _get(_ key: URLResourceKey) -> Int? {
+        #if FOUNDATION_FRAMEWORK
         return (_values[key] as? NSNumber)?.intValue
+        #else
+        return _values[key] as? Int
+        #endif
     }
 
     private mutating func _set(_ key: URLResourceKey, newValue: __owned Any?) {
@@ -69,28 +85,48 @@ public struct URLResourceValues {
 
     private mutating func _set(_ key: URLResourceKey, newValue: String?) {
         _keys.insert(key)
+        #if FOUNDATION_FRAMEWORK
         _values[key] = newValue as NSString?
+        #else
+        _values[key] = newValue
+        #endif
     }
 
     private mutating func _set(_ key: URLResourceKey, newValue: [String]?) {
         _keys.insert(key)
+        #if FOUNDATION_FRAMEWORK
         _values[key] = newValue as NSObject?
+        #else
+        _values[key] = newValue
+        #endif
     }
 
     private mutating func _set(_ key: URLResourceKey, newValue: Date?) {
         _keys.insert(key)
+        #if FOUNDATION_FRAMEWORK
         _values[key] = newValue as NSDate?
+        #else
+        _values[key] = newValue
+        #endif
     }
 
     private mutating func _set(_ key: URLResourceKey, newValue: URL?) {
         _keys.insert(key)
+        #if FOUNDATION_FRAMEWORK
         _values[key] = newValue as NSURL?
+        #else
+        _values[key] = newValue
+        #endif
     }
 
     private mutating func _set(_ key: URLResourceKey, newValue: Bool?) {
         _keys.insert(key)
         if let value = newValue {
+            #if FOUNDATION_FRAMEWORK
             _values[key] = NSNumber(value: value)
+            #else
+            _values[key] = value
+            #endif
         } else {
             _values[key] = nil
         }
@@ -99,7 +135,11 @@ public struct URLResourceValues {
     private mutating func _set(_ key: URLResourceKey, newValue: Int?) {
         _keys.insert(key)
         if let value = newValue {
+            #if FOUNDATION_FRAMEWORK
             _values[key] = NSNumber(value: value)
+            #else
+            _values[key] = value
+            #endif
         } else {
             _values[key] = nil
         }
@@ -204,6 +244,7 @@ public struct URLResourceValues {
     /// URL of the volume on which the resource is stored.
     public var volume: URL? { return _get(.volumeURLKey) }
 
+#if FOUNDATION_FRAMEWORK
     /// Uniform type identifier (UTI) for the resource.
     @available(macOS, introduced: 10.10, deprecated: 100000.0, message: "Use .contentType instead")
     @available(iOS, introduced: 8.0, deprecated: 100000.0, message: "Use .contentType instead")
@@ -211,6 +252,7 @@ public struct URLResourceValues {
     @available(tvOS, introduced: 9.0, deprecated: 100000.0, message: "Use .contentType instead")
     @available(visionOS, introduced: 1.0, deprecated: 100000.0, message: "Use .contentType instead")
     public var typeIdentifier: String? { return _get(.typeIdentifierKey) }
+#endif
 
     /// User-visible type or "kind" description.
     public var localizedTypeDescription: String? { return _get(.localizedTypeDescriptionKey) }
@@ -221,27 +263,42 @@ public struct URLResourceValues {
         set { _set(.labelNumberKey, newValue: newValue) }
     }
 
-
     /// The user-visible label text.
     public var localizedLabel: String? {
         get { return _get(.localizedLabelKey) }
     }
 
+#if FOUNDATION_FRAMEWORK
     /// An identifier which can be used to compare two file system objects for equality using `isEqual`.
     ///
     /// Two object identifiers are equal if they have the same file system path or if the paths are linked to same inode on the same file system. This identifier is not persistent across system restarts.
     public var fileResourceIdentifier: (NSCopying & NSCoding & NSSecureCoding & NSObjectProtocol)? { return _get(.fileResourceIdentifierKey) }
+#else
+    // TODO: API Review?
+    public var fileResourceIdentifier: Data? { return _get(.fileResourceIdentifierKey) }
+#endif
 
+#if FOUNDATION_FRAMEWORK
     /// An identifier that can be used to identify the volume the file system object is on.
     ///
     /// Other objects on the same volume will have the same volume identifier and can be compared using for equality using `isEqual`. This identifier is not persistent across system restarts.
     public var volumeIdentifier: (NSCopying & NSCoding & NSSecureCoding & NSObjectProtocol)? { return _get(.volumeIdentifierKey) }
+#else
+    // TODO: API Review?
+    public var volumeIdentifier: Data? { return _get(.volumeIdentifierKey) }
+#endif
 
+#if FOUNDATION_FRAMEWORK
     /// The file system's internal inode identifier for the item. This value is not stable for all file systems or
     /// across all mounts, so it should be used sparingly and not persisted. It is useful, for example, to match URLs from
     /// the URL enumerator with paths from FSEvents.
     @available( macOS 13.3, iOS 16.4, tvOS 16.4, watchOS 9.4, *)
     public var fileIdentifier: UInt64? { return _get(.fileIdentifierKey) }
+#else
+    /// File identifiers on Windows require 128 bits, so we return a serialized `Data` object, similar to `.volumeIdentifier`.
+    @available( macOS 13.3, iOS 16.4, tvOS 16.4, watchOS 9.4, *)
+    public var fileIdentifier: Data? { return _get(.fileIdentifierKey) }
+#endif
 
     /// A 64-bit value assigned by APFS that identifies a file's content data stream. Only cloned files and their originals can have the same identifier.
     @available(macOS 10.16, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
@@ -259,11 +316,13 @@ public struct URLResourceValues {
     /// True if this process (as determined by EUID) can execute a file resource or search a directory resource.
     public var isExecutable: Bool? { return _get(.isExecutableKey) }
 
+#if FOUNDATION_FRAMEWORK
     /// The file system object's security information encapsulated in a FileSecurity object.
     public var fileSecurity: NSFileSecurity? {
         get { return _get(.fileSecurityKey) }
         set { _set(.fileSecurityKey, newValue: newValue) }
     }
+#endif
 
     /// True if resource should be excluded from backups, false otherwise.
     ///
@@ -288,11 +347,17 @@ public struct URLResourceValues {
     /// True if this URL is a file system trigger directory. Traversing or opening a file system trigger will cause an attempt to mount a file system on the trigger directory.
     public var isMountTrigger: Bool? { return _get(.isMountTriggerKey) }
 
+#if FOUNDATION_FRAMEWORK
     /// An opaque generation identifier which can be compared using `==` to determine if the data in a document has been modified.
     ///
     /// For URLs which refer to the same file inode, the generation identifier will change when the data in the file's data fork is changed (changes to extended attributes or other file system metadata do not change the generation identifier). For URLs which refer to the same directory inode, the generation identifier will change when direct children of that directory are added, removed or renamed (changes to the data of the direct children of that directory will not change the generation identifier). The generation identifier is persistent across system restarts. The generation identifier is tied to a specific document on a specific volume and is not transferred when the document is copied to another volume. This property is not supported by all volumes.
     @available(macOS 10.10, iOS 8.0, watchOS 2.0, tvOS 9.0, *)
     public var generationIdentifier: (NSCopying & NSCoding & NSSecureCoding & NSObjectProtocol)? { return _get(.generationIdentifierKey) }
+#else
+    // TODO: API Review?
+    @available(macOS 10.10, iOS 8.0, watchOS 2.0, tvOS 9.0, *)
+    public var generationIdentifier: Data? { return _get(.generationIdentifierKey) }
+#endif
 
     /// The document identifier -- a value assigned by the kernel to a document (which can be either a file or directory) and is used to identify the document regardless of where it gets moved on a volume.
     ///
@@ -304,7 +369,7 @@ public struct URLResourceValues {
     @available(macOS 10.10, iOS 8.0, watchOS 2.0, tvOS 9.0, *)
     public var addedToDirectoryDate: Date? { return _get(.addedToDirectoryDateKey) }
 
-#if os(macOS)
+#if FOUNDATION_FRAMEWORK && os(macOS)
     /// The quarantine properties as defined in LSQuarantine.h. To remove quarantine information from a file, pass `nil` as the value when setting this property.
     @available(macOS 10.10, *)
     public var quarantineProperties: [String: Any]? {
@@ -322,7 +387,7 @@ public struct URLResourceValues {
             _set(.quarantinePropertiesKey, newValue: newValue ?? NSNull())
         }
     }
-#endif // os(macOS)
+#endif // FOUNDATION_FRAMEWORK && os(macOS)
 
     /// True if the file may have extended attributes. False guarantees there are none.
     @available(macOS 10.16, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
@@ -356,7 +421,7 @@ public struct URLResourceValues {
     /// Total free space in bytes.
     public var volumeAvailableCapacity: Int? { return _get(.volumeAvailableCapacityKey) }
 
-#if os(macOS) || os(iOS)
+#if FOUNDATION_FRAMEWORK && (os(macOS) || os(iOS))
     /// Total available capacity in bytes for "Important" resources, including space expected to be cleared by purging non-essential and cached resources.
     ///
     /// "Important" means something that the user or application clearly expects to be present on the local system, but is ultimately replaceable. This would include items that the user has explicitly requested via the UI, and resources that an application requires in order to provide functionality.
@@ -371,7 +436,7 @@ public struct URLResourceValues {
     /// Examples: A background download of a newly available episode of a TV series that a user has been recently watching, a piece of content explicitly requested on another device, and a new document saved to a network server by the current user from another device.
     @available(macOS 10.13, iOS 11.0, *) @available(tvOS, unavailable) @available(watchOS, unavailable)
     public var volumeAvailableCapacityForOpportunisticUsage: Int64? { return _get(.volumeAvailableCapacityForOpportunisticUsageKey) }
-#endif // os(macOS) || os(iOS)
+#endif // FOUNDATION_FRAMEWORK && (os(macOS) || os(iOS))
 
     /// Total number of resources on the volume.
     public var volumeResourceCount: Int? { return _get(.volumeResourceCountKey) }
@@ -504,6 +569,7 @@ public struct URLResourceValues {
     @available( macOS 13.3, iOS 16.4, tvOS 16.4, watchOS 9.4, *)
     public var volumeMountFromLocation: String? { return _get(.volumeMountFromLocationKey) }
 
+#if FOUNDATION_FRAMEWORK
     /// True if this item is synced to the cloud, false if it is only a local file.
     public var isUbiquitousItem: Bool? { return _get(.isUbiquitousItemKey) }
 
@@ -568,6 +634,7 @@ public struct URLResourceValues {
     /// The protection level for this file
     @available(macOS 10.16, iOS 9.0, *)
     public var fileProtection: URLFileProtection? { return _get(.fileProtectionKey) }
+#endif // FOUNDATION_FRAMEWORK
 
     /// Total file size in bytes
     ///
@@ -589,14 +656,13 @@ public struct URLResourceValues {
     /// - note: Only applicable to regular files.
     public var totalFileAllocatedSize: Int? { return _get(.totalFileAllocatedSizeKey) }
 
-    /// true if the resource is a Finder alias file or a symlink, false otherwise
+    /// True if the resource is a Finder alias file or a symlink, false otherwise
     ///
     /// - note: Only applicable to regular files.
     public var isAliasFile: Bool? { return _get(.isAliasFileKey) }
 
 #endif // !NO_FILESYSTEM
 }
-#endif // FOUNDATION_FRAMEWORK
 
 #if FOUNDATION_FRAMEWORK_NSURL
 internal func foundation_swift_url_enabled() -> Bool {
@@ -745,6 +811,10 @@ public struct URL: Equatable, Sendable, Hashable {
     typealias Parser = RFC3986Parser
     internal var _parseInfo: URLParseInfo!
     private var _baseParseInfo: URLParseInfo?
+
+#if !FOUNDATION_FRAMEWORK
+    private var _resourceValues = URLResourceValuesStorage()
+#endif
 
     internal init(parseInfo: URLParseInfo, relativeTo url: URL? = nil) {
         _parseInfo = parseInfo
@@ -1795,22 +1865,117 @@ public struct URL: Equatable, Sendable, Hashable {
         self = self.resolvingSymlinksInPath()
     }
 
-#if FOUNDATION_FRAMEWORK // These APIs will eventually be available in swift-foundation.
-
     // MARK: - Reachability
 
     /// Returns whether the URL's resource exists and is reachable.
     ///
     /// This method synchronously checks if the resource's backing store is reachable. Checking reachability is appropriate when making decisions that do not require other immediate operations on the resource, e.g. periodic maintenance of UI state that depends on the existence of a specific document. When performing operations such as opening a file or copying resource properties, it is more efficient to simply try the operation and handle failures. This method is currently applicable only to URLs for file system resources. For other URL types, `false` is returned.
     public func checkResourceIsReachable() throws -> Bool {
-        var error: NSError?
-        let result = _url.checkResourceIsReachableAndReturnError(&error)
-        if let e = error {
-            throw e
-        } else {
-            return result
+        #if FOUNDATION_FRAMEWORK
+        guard foundation_swift_url_enabled() else {
+            var error: NSError?
+            let result = _url.checkResourceIsReachableAndReturnError(&error)
+            if let e = error {
+                throw e
+            } else {
+                return result
+            }
         }
+        #endif
+
+        guard isFileURL else {
+            throw CocoaError.errorWithFilePath(.fileReadUnsupportedScheme, self)
+        }
+
+        #if os(Windows)
+        guard FileManager.default.fileExists(atPath: fileSystemPath) else {
+            throw CocoaError.errorWithFilePath(.fileReadNoSuchFile, self)
+        }
+        return true
+        #else
+        return try withUnsafeFileSystemRepresentation { pathPtr in
+            if faccessat(AT_FDCWD, pathPtr, F_OK, AT_SYMLINK_NOFOLLOW | AT_EACCESS) == 0 {
+                return true
+            }
+            var s = stat()
+            if errno == EINVAL && lstat(pathPtr, &s) == 0 {
+                return true
+            }
+            let err = errno
+            throw CocoaError.errorWithFilePath(self, errno: err, reading: true)
+        }
+        #endif
     }
+
+    // MARK: - Resource Values
+
+    /// Sets the resource value identified by a given resource key.
+    ///
+    /// This method writes the new resource values out to the backing store. Attempts to set a read-only resource property or to set a resource property not supported by the resource are ignored and are not considered errors. This method is currently applicable only to URLs for file system resources.
+    ///
+    /// `URLResourceValues` keeps track of which of its properties have been set. Those values are the ones used by this function to determine which properties to write.
+    public mutating func setResourceValues(_ values: URLResourceValues) throws {
+        #if FOUNDATION_FRAMEWORK
+        try _url.setResourceValues(values._values)
+        #else
+        try _resourceValues.setResourceValues(values.allValues, url: self)
+        #endif
+    }
+
+    /// Return a collection of resource values identified by the given resource keys.
+    ///
+    /// This method first checks if the URL object already caches the resource value. If so, it returns the cached resource value to the caller. If not, then this method synchronously obtains the resource value from the backing store, adds the resource value to the URL object's cache, and returns the resource value to the caller. The type of the resource value varies by resource property (see resource key definitions). If this method does not throw and the resulting value in the `URLResourceValues` is populated with nil, it means the resource property is not available for the specified resource and no errors occurred when determining the resource property was not available. This method is currently applicable only to URLs for file system resources.
+    ///
+    /// When this function is used from the main thread, resource values cached by the URL (except those added as temporary properties) are removed the next time the main thread's run loop runs. `func removeCachedResourceValue(forKey:)` and `func removeAllCachedResourceValues()` also may be used to remove cached resource values.
+    ///
+    /// Only the values for the keys specified in `keys` will be populated.
+    public func resourceValues(forKeys keys: Set<URLResourceKey>) throws -> URLResourceValues {
+        #if FOUNDATION_FRAMEWORK
+        return URLResourceValues(keys: keys, values: try _url.resourceValues(forKeys: Array(keys)))
+        #else
+        return URLResourceValues(keys: keys, values: try _resourceValues.resourceValues(forKeys: keys, url: self))
+        #endif
+    }
+
+    /// Sets a temporary resource value on the URL object.
+    ///
+    /// Temporary resource values are for client use. Temporary resource values exist only in memory and are never written to the resource's backing store. Once set, a temporary resource value can be copied from the URL object with `func resourceValues(forKeys:)`. The values are stored in the loosely-typed `allValues` dictionary property.
+    ///
+    /// To remove a temporary resource value from the URL object, use `func removeCachedResourceValue(forKey:)`. Care should be taken to ensure the key that identifies a temporary resource value is unique and does not conflict with system defined keys (using reverse domain name notation in your temporary resource value keys is recommended). This method is currently applicable only to URLs for file system resources.
+    @preconcurrency
+    public mutating func setTemporaryResourceValue(_ value: Sendable, forKey key: URLResourceKey) {
+        #if FOUNDATION_FRAMEWORK
+        _url.setTemporaryResourceValue(value, forKey: key)
+        #else
+        _resourceValues.setTemporaryResourceValue(value, forKey: key)
+        #endif
+    }
+
+    /// Removes all cached resource values and all temporary resource values from the URL object.
+    ///
+    /// This method is currently applicable only to URLs for file system resources.
+    public mutating func removeAllCachedResourceValues() {
+        #if FOUNDATION_FRAMEWORK
+        _url.removeAllCachedResourceValues()
+        #else
+        _resourceValues.removeAllCachedResourceValues()
+        #endif
+    }
+
+    /// Removes the cached resource value identified by a given resource value key from the URL object.
+    ///
+    /// Removing a cached resource value may remove other cached resource values because some resource values are cached as a set of values, and because some resource values depend on other resource values (temporary resource values have no dependencies). This method is currently applicable only to URLs for file system resources.
+    public mutating func removeCachedResourceValue(forKey key: URLResourceKey) {
+        #if FOUNDATION_FRAMEWORK
+        _url.removeCachedResourceValue(forKey: key)
+        #else
+        _resourceValues.removeCachedResourceValue(forKey: key)
+        #endif
+    }
+
+#if FOUNDATION_FRAMEWORK // These APIs are Darwin-specific.
+
+    // MARK: - Promised Items
 
     /// Returns whether the promised item URL's resource exists and is reachable.
     ///
@@ -1824,52 +1989,6 @@ public struct URL: Equatable, Sendable, Hashable {
         } else {
             return result
         }
-    }
-
-    // MARK: - Resource Values
-
-    /// Sets the resource value identified by a given resource key.
-    ///
-    /// This method writes the new resource values out to the backing store. Attempts to set a read-only resource property or to set a resource property not supported by the resource are ignored and are not considered errors. This method is currently applicable only to URLs for file system resources.
-    ///
-    /// `URLResourceValues` keeps track of which of its properties have been set. Those values are the ones used by this function to determine which properties to write.
-    public mutating func setResourceValues(_ values: URLResourceValues) throws {
-        try _url.setResourceValues(values._values)
-    }
-
-    /// Return a collection of resource values identified by the given resource keys.
-    ///
-    /// This method first checks if the URL object already caches the resource value. If so, it returns the cached resource value to the caller. If not, then this method synchronously obtains the resource value from the backing store, adds the resource value to the URL object's cache, and returns the resource value to the caller. The type of the resource value varies by resource property (see resource key definitions). If this method does not throw and the resulting value in the `URLResourceValues` is populated with nil, it means the resource property is not available for the specified resource and no errors occurred when determining the resource property was not available. This method is currently applicable only to URLs for file system resources.
-    ///
-    /// When this function is used from the main thread, resource values cached by the URL (except those added as temporary properties) are removed the next time the main thread's run loop runs. `func removeCachedResourceValue(forKey:)` and `func removeAllCachedResourceValues()` also may be used to remove cached resource values.
-    ///
-    /// Only the values for the keys specified in `keys` will be populated.
-    public func resourceValues(forKeys keys: Set<URLResourceKey>) throws -> URLResourceValues {
-        return URLResourceValues(keys: keys, values: try _url.resourceValues(forKeys: Array(keys)))
-    }
-
-    /// Sets a temporary resource value on the URL object.
-    ///
-    /// Temporary resource values are for client use. Temporary resource values exist only in memory and are never written to the resource's backing store. Once set, a temporary resource value can be copied from the URL object with `func resourceValues(forKeys:)`. The values are stored in the loosely-typed `allValues` dictionary property.
-    ///
-    /// To remove a temporary resource value from the URL object, use `func removeCachedResourceValue(forKey:)`. Care should be taken to ensure the key that identifies a temporary resource value is unique and does not conflict with system defined keys (using reverse domain name notation in your temporary resource value keys is recommended). This method is currently applicable only to URLs for file system resources.
-    @preconcurrency
-    public mutating func setTemporaryResourceValue(_ value: Sendable, forKey key: URLResourceKey) {
-        _url.setTemporaryResourceValue(value, forKey: key)
-    }
-
-    /// Removes all cached resource values and all temporary resource values from the URL object.
-    ///
-    /// This method is currently applicable only to URLs for file system resources.
-    public mutating func removeAllCachedResourceValues() {
-        _url.removeAllCachedResourceValues()
-    }
-
-    /// Removes the cached resource value identified by a given resource value key from the URL object.
-    ///
-    /// Removing a cached resource value may remove other cached resource values because some resource values are cached as a set of values, and because some resource values depend on other resource values (temporary resource values have no dependencies). This method is currently applicable only to URLs for file system resources.
-    public mutating func removeCachedResourceValue(forKey key: URLResourceKey) {
-        _url.removeCachedResourceValue(forKey: key)
     }
 
     /// Get resource values from URLs of 'promised' items.
@@ -1888,10 +2007,6 @@ public struct URL: Equatable, Sendable, Hashable {
     public func promisedItemResourceValues(forKeys keys: Set<URLResourceKey>) throws -> URLResourceValues {
         return URLResourceValues(keys: keys, values: try _url.promisedItemResourceValues(forKeys: Array(keys)))
     }
-
-#endif // FOUNDATION_FRAMEWORK
-
-#if FOUNDATION_FRAMEWORK // These APIs are Darwin-specific.
 
     // MARK: - Bookmarks and Alias Files
 

@@ -1031,4 +1031,70 @@ final class URLTests : XCTestCase {
         XCTAssertEqual(comp.percentEncodedPath, "/my%00path")
         XCTAssertEqual(comp.path, "/my\u{0}path")
     }
+
+    @available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)
+    func testURLResourceValues() throws {
+        try FileManagerPlayground {
+            Directory("dir") {
+                File("Foo", contents: Data(count: 513))
+                File("Bar", contents: Data(count: 10))
+            }
+        }.test {
+            let currentDirectoryPath = $0.currentDirectoryPath
+            let baseURL = URL(filePath: currentDirectoryPath, directoryHint: .isDirectory)
+            let dirURL = baseURL.appending(path: "dir")
+            var fileURL = dirURL.appending(path: "Foo")
+
+            let dirValues = try dirURL.resourceValues(forKeys: [.nameKey, .isDirectoryKey, .fileResourceTypeKey, .directoryEntryCountKey, .linkCountKey])
+            XCTAssertEqual(dirValues.name, "dir")
+            XCTAssertTrue(dirValues.isDirectory!)
+            XCTAssertEqual(dirValues.fileResourceType, .directory)
+            XCTAssertEqual(dirValues.directoryEntryCount, 2)
+
+            var fileValues = try fileURL.resourceValues(forKeys: [.nameKey, .isDirectoryKey, .isRegularFileKey, .fileResourceTypeKey, .fileSizeKey, .linkCountKey])
+            XCTAssertEqual(fileValues.name, "Foo")
+            XCTAssertFalse(fileValues.isDirectory!)
+            XCTAssertTrue(fileValues.isRegularFile!)
+            XCTAssertEqual(fileValues.fileResourceType, .regular)
+            XCTAssertEqual(fileValues.fileSize, 513)
+            XCTAssertEqual(fileValues.linkCount, 1)
+
+            fileValues = try fileURL.resourceValues(forKeys: [.volumeURLKey, .volumeIdentifierKey])
+            let volumeURL = try XCTUnwrap(fileValues.volume)
+            let volumeValues = try volumeURL.resourceValues(forKeys: [.isVolumeKey, .volumeURLKey, .volumeIdentifierKey])
+            XCTAssertTrue(volumeValues.isVolume!)
+            XCTAssertEqual(volumeValues.volume, volumeURL)
+            #if FOUNDATION_FRAMEWORK
+            XCTAssertTrue(fileValues.volumeIdentifier?.isEqual(volumeValues.volumeIdentifier) ?? false)
+            #else
+            XCTAssertEqual(fileValues.volumeIdentifier, volumeValues.volumeIdentifier)
+            #endif
+
+            let symlinkURL = baseURL.appending(path: "symlink")
+            try $0.createSymbolicLink(at: symlinkURL, withDestinationURL: fileURL)
+            let symlinkValues = try symlinkURL.resourceValues(forKeys: [.nameKey, .isDirectoryKey, .isSymbolicLinkKey, .fileResourceTypeKey])
+            XCTAssertEqual(symlinkValues.name, "symlink")
+            XCTAssertFalse(symlinkValues.isDirectory!)
+            XCTAssertTrue(symlinkValues.isSymbolicLink!)
+            XCTAssertEqual(symlinkValues.fileResourceType, .symbolicLink)
+
+            let hardlinkURL = baseURL.appending(path: "hardlink")
+            try $0.linkItem(at: fileURL, to: hardlinkURL)
+            let hardlinkValues = try hardlinkURL.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .fileResourceTypeKey, .fileSizeKey, .linkCountKey, .fileResourceIdentifierKey])
+            XCTAssertFalse(hardlinkValues.isDirectory!)
+            XCTAssertTrue(hardlinkValues.isRegularFile!)
+            XCTAssertEqual(hardlinkValues.fileResourceType, .regular)
+            XCTAssertEqual(hardlinkValues.fileSize, 513)
+            XCTAssertEqual(hardlinkValues.linkCount, 2)
+
+            fileURL.removeCachedResourceValue(forKey: .linkCountKey)
+            fileValues = try fileURL.resourceValues(forKeys: [.linkCountKey, .fileResourceIdentifierKey])
+            XCTAssertEqual(fileValues.linkCount, 2)
+            #if FOUNDATION_FRAMEWORK
+            XCTAssertTrue(fileValues.fileResourceIdentifier?.isEqual(hardlinkValues.fileResourceIdentifier) ?? false)
+            #else
+            XCTAssertEqual(fileValues.fileResourceIdentifier, hardlinkValues.fileResourceIdentifier)
+            #endif
+        }
+    }
 }

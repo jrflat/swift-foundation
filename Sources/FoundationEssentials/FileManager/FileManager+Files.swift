@@ -29,7 +29,7 @@ import WinSDK
 #endif
 
 extension Date {
-    fileprivate init(seconds: TimeInterval, nanoSeconds: TimeInterval) {
+    internal init(seconds: TimeInterval, nanoSeconds: TimeInterval) {
         self.init(timeIntervalSinceReferenceDate: seconds - Self.timeIntervalBetween1970AndReferenceDate + nanoSeconds / 1_000_000_000.0 )
     }
 }
@@ -52,7 +52,7 @@ private func _nameFor(gid: gid_t) -> String? {
 #endif
 
 extension mode_t {
-    private var _fileType: FileAttributeType {
+    internal var _fileType: FileAttributeType {
         switch self & S_IFMT {
         case S_IFCHR: .typeCharacterSpecial
         case S_IFDIR: .typeDirectory
@@ -162,7 +162,7 @@ extension stat {
         Date(seconds: TimeInterval(st_mtim.tv_sec), nanoSeconds: TimeInterval(st_mtim.tv_nsec))
         #endif
     }
-    
+
     var creationDate: Date {
         #if canImport(Darwin)
         Date(seconds: TimeInterval(st_ctimespec.tv_sec), nanoSeconds: TimeInterval(st_ctimespec.tv_nsec))
@@ -170,7 +170,7 @@ extension stat {
         Date(seconds: TimeInterval(st_ctim.tv_sec), nanoSeconds: TimeInterval(st_ctim.tv_nsec))
         #endif
     }
-    
+
     fileprivate var fileAttributes: [FileAttributeKey : Any] {
         let fileType = st_mode.fileType
         var result: [FileAttributeKey : Any] = [
