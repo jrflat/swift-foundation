@@ -863,7 +863,9 @@ enum _FileOperations {
                     }
                 } else {
                     do {
-                        try fileManager.createSymbolicLink(atPath: dst, withDestinationPath: src)
+                        guard CreateHardLinkW(pwszDestination, pwszSource, nil) else {
+                            throw CocoaError.errorWithFilePath(src, win32: GetLastError(), reading: true)
+                        }
                     } catch {
                         try delegate.throwIfNecessary(error, src, dst)
                     }

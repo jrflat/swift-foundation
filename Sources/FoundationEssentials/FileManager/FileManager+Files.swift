@@ -35,14 +35,14 @@ import WASILibc
 #endif
 
 extension Date {
-    fileprivate init(seconds: TimeInterval, nanoSeconds: TimeInterval) {
+    internal init(seconds: TimeInterval, nanoSeconds: TimeInterval) {
         self.init(timeIntervalSinceReferenceDate: seconds - Self.timeIntervalBetween1970AndReferenceDate + nanoSeconds / 1_000_000_000.0 )
     }
 }
 
 #if !os(Windows)
 extension mode_t {
-    private var _fileType: FileAttributeType {
+    internal var _fileType: FileAttributeType {
         switch self & S_IFMT {
         case S_IFCHR: .typeCharacterSpecial
         case S_IFDIR: .typeDirectory
@@ -152,7 +152,7 @@ extension stat {
         Date(seconds: TimeInterval(st_mtim.tv_sec), nanoSeconds: TimeInterval(st_mtim.tv_nsec))
         #endif
     }
-    
+
     var creationDate: Date {
         #if canImport(Darwin)
         Date(seconds: TimeInterval(st_ctimespec.tv_sec), nanoSeconds: TimeInterval(st_ctimespec.tv_nsec))
@@ -160,7 +160,7 @@ extension stat {
         Date(seconds: TimeInterval(st_ctim.tv_sec), nanoSeconds: TimeInterval(st_ctim.tv_nsec))
         #endif
     }
-    
+
     fileprivate var fileAttributes: [FileAttributeKey : Any] {
         // On 32 bit Android, st_mode is UInt32.
         let fileType = mode_t(st_mode).fileType
@@ -736,34 +736,18 @@ extension _FileManagerImpl {
             
             
             #if canImport(Darwin)
-            func QCMD(_ cmd: Int32, _ type: Int32) -> Int32 {
-                (cmd << SUBCMDSHIFT) | (type & SUBCMDMASK)
-            }
-            
-            func _quotactl<T>(_ path: UnsafePointer<CChar>, _ cmd: Int32, _ type: Int32, _ uid: uid_t, init: T) -> T? {
-                var res = `init`
-                let success = withUnsafeMutableBytes(of: &res) { buffer in
-                    quotactl(path, QCMD(cmd, type), Int32(uid), buffer.baseAddress!) == 0
+            FileManager._withQuotaInfo(result) { quotaInfo in
+                guard let quotaInfo else {
+                    return
                 }
-                return success ? res : nil
-            }
-            
-            withUnsafeBytes(of: &result.f_mntonname) { mntonnameBuffer in
-                let mntonname = mntonnameBuffer.baseAddress!.assumingMemoryBound(to: CChar.self)
-                // If a quota is enabled, get quota info
-                let userID = geteuid()
-                if let isQuotaOn = _quotactl(mntonname, Q_QUOTASTAT, USRQUOTA, userID, init: 0),
-                   isQuotaOn != 0,
-                   let quotaInfo = _quotactl(mntonname, Q_GETQUOTA, USRQUOTA, userID, init: dqblk()) {
-                    // For each value (total/available bytes, total/available files) report the smaller of the quota hard limit and the statfs value.
-                    if quotaInfo.dqb_bhardlimit > 0 {
-                        totalSizeBytes = min(quotaInfo.dqb_bhardlimit, totalSizeBytes)
-                        availSizeBytes = min(quotaInfo.dqb_bhardlimit - quotaInfo.dqb_curbytes, availSizeBytes)
-                    }
-                    if (quotaInfo.dqb_ihardlimit > 0) {
-                        totalFiles = min(UInt64(quotaInfo.dqb_ihardlimit), totalFiles)
-                        availFiles = min(UInt64(quotaInfo.dqb_ihardlimit - quotaInfo.dqb_curinodes), availFiles)
-                    }
+                // For each value (total/available bytes, total/available files) report the smaller of the quota hard limit and the statfs value.
+                if quotaInfo.dqb_bhardlimit > 0 {
+                    totalSizeBytes = min(quotaInfo.dqb_bhardlimit, totalSizeBytes)
+                    availSizeBytes = min(quotaInfo.dqb_bhardlimit - quotaInfo.dqb_curbytes, availSizeBytes)
+                }
+                if (quotaInfo.dqb_ihardlimit > 0) {
+                    totalFiles = min(UInt64(quotaInfo.dqb_ihardlimit), totalFiles)
+                    availFiles = min(UInt64(quotaInfo.dqb_ihardlimit - quotaInfo.dqb_curinodes), availFiles)
                 }
             }
             #endif

@@ -229,5 +229,7 @@ public typealias IndexPath = FoundationEssentials.IndexPath
 public typealias URL = FoundationEssentials.URL
 public typealias URLComponents = FoundationEssentials.URLComponents
 public typealias URLQueryItem = FoundationEssentials.URLQueryItem
+public typealias URLResourceKey = FoundationEssentials.URLResourceKey
+public typealias URLResourceValues = FoundationEssentials.URLResourceValues
 
 #endif // FOUNDATION_FRAMEWORK

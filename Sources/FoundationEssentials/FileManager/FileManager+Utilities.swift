@@ -287,3 +287,32 @@ extension FileManager {
 #endif
     }
 }
+
+#if canImport(Darwin)
+extension FileManager {
+    internal static func _withQuotaInfo<R>(_ statfs: statfs, body: (dqblk?) -> R) -> R {
+        func QCMD(_ cmd: Int32, _ type: Int32) -> Int32 {
+            (cmd << SUBCMDSHIFT) | (type & SUBCMDMASK)
+        }
+
+        func _quotactl<T>(_ path: UnsafePointer<CChar>, _ cmd: Int32, _ type: Int32, _ uid: uid_t, init: T) -> T? {
+            var res = `init`
+            let success = withUnsafeMutableBytes(of: &res) { buffer in
+                quotactl(path, QCMD(cmd, type), Int32(uid), buffer.baseAddress!) == 0
+            }
+            return success ? res : nil
+        }
+
+        var quotaInfo: dqblk?
+        withUnsafeBytes(of: statfs.f_mntonname) { mntonnameBuffer in
+            let mntonname = mntonnameBuffer.baseAddress!.assumingMemoryBound(to: CChar.self)
+            // If a quota is enabled, get quota info
+            let userID = geteuid()
+            if let isQuotaOn = _quotactl(mntonname, Q_QUOTASTAT, USRQUOTA, userID, init: 0), isQuotaOn != 0 {
+                quotaInfo = _quotactl(mntonname, Q_GETQUOTA, USRQUOTA, userID, init: dqblk())
+            }
+        }
+        return body(quotaInfo)
+    }
+}
+#endif // canImport(Darwin)

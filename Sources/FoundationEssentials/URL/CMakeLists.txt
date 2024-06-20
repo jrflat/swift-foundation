@@ -16,4 +16,9 @@ target_sources(FoundationEssentials PRIVATE
     URL.swift
     URLComponents.swift
     URLComponents_ObjC.swift
-    URLParser.swift)
+    URLParser.swift
+    URLResourceKey.swift
+    URLResourceValues.swift
+    URLResourceValues+Darwin.swift
+    URLResourceValues+Libc.swift
+    URLResourceValues+Windows.swift)

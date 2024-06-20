@@ -79,6 +79,12 @@ public struct Date : Comparable, Hashable, Equatable, Sendable {
         _time = ti
     }
 
+    /// FILETIME format: the number of 100-ns intervals since 00:00:00 UTC on 1 January 1601
+    internal init(filetime: UInt64) {
+        let timeIntervalSinceReferenceDate = (Double(filetime) / 10_000_000.0) - Date.timeIntervalBetween1601AndReferenceDate
+        self.init(timeIntervalSinceReferenceDate: timeIntervalSinceReferenceDate)
+    }
+
     /**
     Returns the interval between the date object and 00:00:00 UTC on 1 January 2001.
 
