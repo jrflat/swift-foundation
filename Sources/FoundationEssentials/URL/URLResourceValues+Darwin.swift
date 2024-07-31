@@ -27,8 +27,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
             return _statInfo
         }
         var s = stat()
-        try fsPath.withFileSystemRepresentation {
-            guard lstat($0, &s) == 0 else {
+        try fsPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+            }
+            guard lstat(fsRep, &s) == 0 else {
                 throw CocoaError.errorWithFilePath(fsPath, errno: errno, reading: true)
             }
         }
@@ -46,8 +49,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
             return _statfsInfo
         }
         var s = statfs()
-        try fsPath.withFileSystemRepresentation {
-            guard statfs($0, &s) == 0 else {
+        try fsPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+            }
+            guard statfs(fsRep, &s) == 0 else {
                 throw CocoaError.errorWithFilePath(fsPath, errno: errno, reading: true)
             }
         }
@@ -554,6 +560,10 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
                 var userInfo = error.userInfo
                 userInfo[unsetValuesKey] = Array(unsuccessfulKeys)
                 return CocoaError(error.code, userInfo: userInfo)
+            }
+
+            guard let fsRep else {
+                throw finalError(CocoaError.errorWithFilePath(.fileReadUnknown, fsPath))
             }
 
             // Flags set via chflags

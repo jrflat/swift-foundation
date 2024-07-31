@@ -13,7 +13,7 @@
 #if !NO_FILESYSTEM
 #if !canImport(Darwin) && !os(Windows) && canImport(Glibc)
 import Glibc
-internal import _CShims
+internal import _FoundationCShims
 
 private struct FileSystemSupportEntry {
     let maximumFileSize: Int?
@@ -304,8 +304,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
             return _statInfo
         }
         var s = stat()
-        try fsPath.withFileSystemRepresentation {
-            guard lstat($0, &s) == 0 else {
+        try fsPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+            }
+            guard lstat(fsRep, &s) == 0 else {
                 throw CocoaError.errorWithFilePath(fsPath, errno: errno, reading: true)
             }
         }
@@ -319,8 +322,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
             return _statvfsInfo
         }
         var s = statvfs()
-        try fsPath.withFileSystemRepresentation {
-            guard statvfs($0, &s) == 0 else {
+        try fsPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+            }
+            guard statvfs(fsRep, &s) == 0 else {
                 throw CocoaError.errorWithFilePath(fsPath, errno: errno, reading: true)
             }
         }
@@ -366,8 +372,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
         for entry in mountInfoList {
             let mountPoint = entry.mountPoint
             var mountStat = stat()
-            let success = mountPoint.withFileSystemRepresentation {
-                return lstat($0, &mountStat) == 0
+            let success = mountPoint.withFileSystemRepresentation { fsRep in
+                guard let fsRep else {
+                    return false
+                }
+                return lstat(fsRep, &mountStat) == 0
             }
             guard success else {
                 continue
@@ -441,8 +450,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
         // Fall back to checking if st_dev differs for the parent
         let parentDirectoryPath = fsPath.standardizingPath.deletingLastPathComponent()
         var parentStat = stat()
-        try parentDirectoryPath.withFileSystemRepresentation {
-            guard lstat($0, &parentStat) == 0 else {
+        try parentDirectoryPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+            }
+            guard lstat(fsRep, &parentStat) == 0 else {
                 throw CocoaError.errorWithFilePath(parentDirectoryPath, errno: errno, reading: true)
             }
         }
@@ -454,14 +466,14 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
     }
 
     func contentModificationDate() throws -> Date? {
-        let seconds = try TimeInterval(statInfo().st_mtime.tv_sec)
-        let nanoSeconds = try TimeInterval(statInfo().st_mtime.tv_nsec)
+        let seconds = try TimeInterval(statInfo().st_mtim.tv_sec)
+        let nanoSeconds = try TimeInterval(statInfo().st_mtim.tv_nsec)
         return Date(seconds: seconds, nanoSeconds: nanoSeconds)
     }
 
     func attributeModificationDate() throws -> Date? {
-        let seconds = try TimeInterval(statInfo().st_ctime.tv_sec)
-        let nanoSeconds = try TimeInterval(statInfo().st_ctime.tv_nsec)
+        let seconds = try TimeInterval(statInfo().st_ctim.tv_sec)
+        let nanoSeconds = try TimeInterval(statInfo().st_ctim.tv_nsec)
         return Date(seconds: seconds, nanoSeconds: nanoSeconds)
     }
 
@@ -490,8 +502,8 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
     }
 
     func contentAccessDate() throws -> Date? {
-        let seconds = TimeInterval(try statInfo().st_atime.tv_sec)
-        let nanoSeconds = TimeInterval(try statInfo().st_atime.tv_nsec)
+        let seconds = TimeInterval(try statInfo().st_atim.tv_sec)
+        let nanoSeconds = TimeInterval(try statInfo().st_atim.tv_nsec)
         return Date(seconds: seconds, nanoSeconds: nanoSeconds)
     }
 
@@ -560,8 +572,11 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
     }
 
     func mayHaveExtendedAttributes() throws -> Bool? {
-        return fsPath.withFileSystemRepresentation {
-            listxattr($0, nil, 0) > 0
+        return fsPath.withFileSystemRepresentation { fsRep in
+            guard let fsRep else {
+                return nil
+            }
+            return listxattr(fsRep, nil, 0) > 0
         }
     }
 
@@ -632,7 +647,7 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
     }
 
     func volumeIsReadOnly() throws -> Bool? {
-        try volumeFlagsContain(ST_RDONLY)
+        try volumeFlagsContain(Int32(ST_RDONLY))
     }
 
     func volumeIsEjectable() throws -> Bool? {
@@ -905,6 +920,9 @@ internal final class _URLResourceValuesProvider: _URLResourceValuesProviderProto
             }
 
             try fsPath.withFileSystemRepresentation { fsRep in
+                guard let fsRep else {
+                    throw CocoaError.errorWithFilePath(.fileReadUnknown, fsPath)
+                }
                 try withUnsafePointer(to: timevals) {
                     try $0.withMemoryRebound(to: timeval.self, capacity: 2) {
                         guard utimes(fsRep, $0) == 0 else {

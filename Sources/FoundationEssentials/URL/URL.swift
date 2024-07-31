@@ -19,7 +19,7 @@ internal import CoreFoundation_Private.CFURL
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
-internal import _CShims
+internal import _FoundationCShims
 #elseif os(Windows)
 import CRT
 import WinSDK
@@ -1894,6 +1894,9 @@ public struct URL: Equatable, Sendable, Hashable {
         return true
         #else
         return try withUnsafeFileSystemRepresentation { pathPtr in
+            guard let pathPtr else {
+                throw CocoaError.errorWithFilePath(.fileReadUnknown, self)
+            }
             if faccessat(AT_FDCWD, pathPtr, F_OK, AT_SYMLINK_NOFOLLOW | AT_EACCESS) == 0 {
                 return true
             }
