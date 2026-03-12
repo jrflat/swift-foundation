@@ -29,8 +29,12 @@ extension NSURL {
         let string = string.takeUnretainedValue()
         guard _withURLSpan(
             string: string,
-            blockIfASCII: { parse(UTF8.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding) },
-            blockIfUTF16: { parse(UTF16.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding) }
+            blockIfASCII: {
+                parse(UTF8.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding, useModernParsing: false)
+            },
+            blockIfUTF16: {
+                parse(UTF16.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding, useModernParsing: false)
+            }
         ) else {
             return false
         }
@@ -46,8 +50,12 @@ extension NSURL {
         let string = string.takeUnretainedValue()
         guard _withURLSpan(
             string: string,
-            blockIfASCII: { parse(UTF8.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding) },
-            blockIfUTF16: { parse(UTF16.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding) }
+            blockIfASCII: {
+                parse(UTF8.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding, useModernParsing: false)
+            },
+            blockIfUTF16: {
+                parse(UTF16.self, span: $0, flags: &flags, into: impl, allowEncoding: allowEncoding, useModernParsing: false)
+            }
         ) else {
             return false
         }

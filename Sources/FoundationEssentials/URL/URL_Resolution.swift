@@ -369,6 +369,7 @@ extension Slice {
     }
 }
 
+@_specialize(where T == UInt8,  Header == _URLInfo)
 @_specialize(where T == UInt8,  Header == UnsafePointer<__CFURLHeader>)
 @_specialize(where T == UInt16, Header == UnsafePointer<__CFURLHeader>)
 internal func resolveURLBuffers<

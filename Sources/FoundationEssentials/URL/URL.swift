@@ -615,8 +615,12 @@ internal func foundation_swift_url_enabled() -> Bool {
 internal func foundation_swift_nsurl_enabled() -> Bool {
     return _foundation_swift_nsurl_feature_enabled()
 }
+internal func foundation_swift_url_v2_enabled() -> Bool {
+    return _foundation_swift_url_v2_enabled()
+}
 #else
 internal func foundation_swift_url_enabled() -> Bool { return true }
+internal func foundation_swift_url_v2_enabled() -> Bool { return false }
 #endif
 
 #if canImport(os)
@@ -640,9 +644,14 @@ public struct URL: Equatable, Sendable, Hashable {
 #if FOUNDATION_FRAMEWORK
     private static var _type: any _URLProtocol.Type {
         if URL.compatibility2 {
-            return _BridgedURL.self
+            _BridgedURL.self
+        } else if foundation_swift_url_v2_enabled() {
+            _URL.self
+        } else if foundation_swift_url_enabled() {
+            _SwiftURL.self
+        } else {
+            _BridgedURL.self
         }
-        return foundation_swift_url_enabled() ? _SwiftURL.self : _BridgedURL.self
     }
 #else
     private static let _type = _SwiftURL.self
@@ -774,7 +783,7 @@ public struct URL: Equatable, Sendable, Hashable {
             return
         }
         #endif
-        // Infer from the path to prevent a file system check for what is likely a non-existant, malformed, or inaccessible path
+        // Infer from the path to prevent a file system check for what is likely a non-existent, malformed, or inaccessible path
         _url = _SwiftURL(filePath: path, directoryHint: .inferFromPath).convertingFileReference()
     }
 
@@ -1384,8 +1393,8 @@ extension URL {
         case windows
     }
 
-    internal func fileSystemPath(style: URL.PathStyle = URL.defaultPathStyle, resolveAgainstBase: Bool = true) -> String {
-        _url.fileSystemPath(style: style, resolveAgainstBase: resolveAgainstBase)
+    internal func fileSystemPath(style: URL.PathStyle = URL.defaultPathStyle) -> String {
+        _url.fileSystemPath(style: style)
     }
 
     #if os(Windows)
@@ -1434,10 +1443,11 @@ extension URL {
         // Treat a lone "~" as a potential file name and don't expand it
         if filePath.utf8.starts(with: [UInt8(ascii: "~"), UInt8(ascii: "/")]) {
             filePath = filePath.expandingTildeInPath
+            // Make sure the expanded path is absolute
+            return filePath.utf8.first == ._slash
         }
         #endif
-        // Make sure the expanded path is absolute
-        return filePath.utf8.first == ._slash
+        return false
     }
 
     /// Initializes a newly created file URL referencing the local file or directory at path, relative to a base URL.
@@ -1544,7 +1554,20 @@ extension URL {
     /// Calling this property will issue a `getcwd` syscall.
     @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
     public static func currentDirectory() -> URL {
-        return URL(filePath: FileManager.default.currentDirectoryPath, directoryHint: .isDirectory)
+        _currentDirectory() ?? URL(filePath: "", directoryHint: .isDirectory)
+    }
+
+    internal static func _currentDirectory() -> URL? {
+        #if os(Windows)
+        URL(filePath: FileManager.default.currentDirectoryPath, directoryHint: .isDirectory)
+        #else
+        withUnsafeTemporaryAllocation(of: CChar.self, capacity: FileManager.MAX_PATH_SIZE) { buffer in
+            guard getcwd(buffer.baseAddress!, FileManager.MAX_PATH_SIZE) != nil else {
+                return nil
+            }
+            return URL(fileURLWithFileSystemRepresentation: buffer.baseAddress!, isDirectory: true, relativeTo: nil)
+        }
+        #endif
     }
 
     /// The home directory for the current user (~/).
