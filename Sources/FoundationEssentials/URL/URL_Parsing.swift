@@ -829,12 +829,12 @@ private func encode<T: _URLEncoding, Impl: _URLParseable>(
     updating impl: UnsafeMutablePointer<Impl>
 ) -> String? {
     let result = encode(T.self, span: span, flags: flags, for: impl, updateRanges: true)
-    if T.self == __CFSmallURLImpl.self || T.self == __CFBigURLImpl.self {
+    if flags.contains(.shouldEncodePath) {
+        flags.insert(.hasEncodedPath)
+    }
+    if Impl.self == __CFSmallURLImpl.self || Impl.self == __CFBigURLImpl.self {
         // NSURL previously passed the fully-encoded URL string to CFURL,
         // so CFURL just saw the valid string that doesn't require encoding.
-        if flags.contains(.shouldEncodePath) {
-            flags.insert(.hasEncodedPath)
-        }
         flags.remove([
             .shouldEncodeUser, .shouldEncodePassword, .shouldEncodeHost,
             .shouldEncodePath, .shouldEncodeQuery, .shouldEncodeFragment
