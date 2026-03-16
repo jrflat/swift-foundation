@@ -26,7 +26,9 @@ import WinSDK
 
 #if FOUNDATION_FRAMEWORK
 internal import _ForSwiftFoundation
+#if canImport(Synchronization)
 internal import Synchronization
+#endif
 #endif
 
 /// `_URL` provides the newer, faster Swift implementation for `URL`.
@@ -43,7 +45,11 @@ internal final class _URL: Sendable, Hashable, Equatable {
     #if FOUNDATION_FRAMEWORK
     // Note: We use a lock instead of a lazy var to ensure that we always
     // bridge to the same NSURL even if the URL was copied across threads.
+    #if canImport(Synchronization)
     private let _nsurlLock = Mutex<NSURL?>(nil)
+    #else
+    private let _nsurlLock = LockedState<NSURL?>(initialState: nil)
+    #endif
     private var _nsurl: NSURL {
         return _nsurlLock.withLock {
             if let nsurl = $0 { return nsurl }
@@ -180,6 +186,9 @@ internal final class _URL: Sendable, Hashable, Equatable {
             relativeTo: base
         )
 
+        #if NO_FILESYSTEM
+        self.init(info: info, relativeTo: base)
+        #else
         if isDirectory != nil || path.isEmpty {
             self.init(info: info, relativeTo: base)
             return
@@ -198,6 +207,7 @@ internal final class _URL: Sendable, Hashable, Equatable {
         info.flags.insert(.hasDirectoryPath)
         info.pathRange = info.pathRange.startIndex..<(info.pathRange.endIndex + 1)
         self.init(info: info, relativeTo: base)
+        #endif
     }
 
     convenience init?(dataRepresentation: Data, relativeTo base: URL?, isAbsolute: Bool) {
@@ -990,6 +1000,9 @@ internal final class _URL: Sendable, Hashable, Equatable {
                     encodingState: encodingState
                 )
                 let url = replacing(info: newInfo)
+                #if NO_FILESYSTEM
+                return url.url
+                #else
                 if isDirectory != nil {
                     return url.url
                 }
@@ -1008,6 +1021,7 @@ internal final class _URL: Sendable, Hashable, Equatable {
                     isDirectory: true,
                     encodingState: encodingState
                 )
+                #endif
             }
         }
     }

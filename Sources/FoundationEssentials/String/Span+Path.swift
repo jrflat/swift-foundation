@@ -202,4 +202,24 @@ extension Span<UInt8> {
         }
         return lastDot
     }
+
+    func lastIndex(of byte: UInt8) -> Int? {
+        lastIndex { $0 == byte }
+    }
+
+    func lastIndex(where predicate: (UInt8) throws -> Bool) rethrows -> Int? {
+        guard !isEmpty else {
+            return nil
+        }
+
+        var i = count - 1
+        while i >= 0 {
+            if try predicate(self[i]) {
+                return i
+            }
+            i -= 1
+        }
+
+        return nil
+    }
 }

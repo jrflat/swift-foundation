@@ -212,10 +212,13 @@ extension _URLInfo {
                 flags.insert(.isFileURL)
             }
             return base
-        } else if let cwd = URL._currentDirectory() {
+        }
+        #if !NO_FILESYSTEM
+        if let cwd = URL._currentDirectory() {
             flags.insert(.isFileURL)
             return cwd
         }
+        #endif
         return nil
     }
 

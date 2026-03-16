@@ -585,7 +585,7 @@ internal final class _SwiftURL: Sendable, Hashable, Equatable {
         }
     }
 
-    internal func fileSystemPath(style: URL.PathStyle = URL.defaultPathStyle,) -> String {
+    internal func fileSystemPath(style: URL.PathStyle = URL.defaultPathStyle) -> String {
         let urlPath = absolutePath(percentEncoded: true)
         return Self.fileSystemPath(for: urlPath, style: style)
     }

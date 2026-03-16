@@ -312,9 +312,11 @@ internal func parsePOSIX(_ path: String, flags: inout _URLFlags, isDirectory: Bo
     var path = path
     _ = URL.isAbsolute(standardizing: &path, pathStyle: .posix)
     #if FOUNDATION_FRAMEWORK
+    #if !os(watchOS)
     if path.utf8Span.isKnownASCII {
         return parseFromUTF8(path, flags: &flags, isDirectory: isDirectory)
     }
+    #endif
     // Convert path to its decomposed file system representation
     let maxFSRSize = path.maxFileSystemRepresentationSize
     return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: maxFSRSize + 1) { pathBuffer in
