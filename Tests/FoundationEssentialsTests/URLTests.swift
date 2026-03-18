@@ -610,9 +610,17 @@ private struct URLTests {
 
         let base = URL(filePath: #"\d:\path\"#, directoryHint: .isDirectory)
         url = URL(filePath: #"%43:\fake\letter"#, directoryHint: .notDirectory, relativeTo: base)
-        // ":" is encoded to "%3A" in the first path segment so it's not mistaken as the scheme separator
-        #expect(url.relativeString == "%2543%3A/fake/letter")
-        #expect(url.path() == "/d:/path/%2543%3A/fake/letter")
+        if foundation_swift_url_v2_enabled() {
+            // More compatible with the old implementation recognizing that
+            // non-scheme characters like "%" cannot be interpreted as part
+            // of a scheme and must instead represent a relative path.
+            #expect(url.relativeString == "%2543:/fake/letter")
+            #expect(url.path() == "/d:/path/%2543:/fake/letter")
+        } else {
+            // ":" is encoded to "%3A" in the first path segment so it's not mistaken as the scheme separator
+            #expect(url.relativeString == "%2543%3A/fake/letter")
+            #expect(url.path() == "/d:/path/%2543%3A/fake/letter")
+        }
         #expect(url.path == "d:/path/%43:/fake/letter")
         #expect(url.fileSystemPath() == "d:/path/%43:/fake/letter")
 
@@ -936,7 +944,11 @@ private struct URLTests {
 
         relative = URL(filePath: "relative/..", relativeTo: absolute)
         #expect(relative.relativePath == "relative/..")
-        checkBehavior(relative.hasDirectoryPath, new: true, old: false)
+        if !foundation_swift_url_v2_enabled() {
+            checkBehavior(relative.hasDirectoryPath, new: true, old: false)
+        } else {
+            #expect(relative.hasDirectoryPath == false) // Compatible with old behavior
+        }
         #expect(relative.path == "/absolute")
 
         relative.deleteLastPathComponent()
@@ -1699,10 +1711,26 @@ private struct URLTests {
         #expect(comp.path == "/my\u{0}path")
     }
 
-    @Test func standardizedEmptyString() {
-        let url = URL(string: "../../../")!
-        let standardized = url.standardized
-        #expect(standardized.path().isEmpty)
+    @Test(.enabled(if: foundation_swift_url_v2_enabled()))
+    func standardizedDotSegments() throws {
+        var standardized = try #require(URL(string: "../../../")).standardized
+        // URL should not remove leading dot segments until it's actually
+        // resolved against a base (longstanding CFURL behavior, too).
+        #expect(standardized.path() == "../../../")
+
+        let base = URL(filePath: "/base/directory/")
+        let relative = URL(filePath: "dev", relativeTo: base)
+        let combined = relative.appending(path: "../thing")
+        standardized = combined.standardized
+        let expected = URL(filePath: "thing", relativeTo: base)
+
+        #expect(standardized == expected)
+        #expect(standardized.relativeString == expected.relativeString)
+        #expect(standardized.relativeString == "thing")
+        #expect(standardized.path() == expected.path())
+        #expect(standardized.path() == "/base/directory/thing")
+        #expect(standardized.absoluteURL.path() == expected.absoluteURL.path())
+        #expect(standardized.absoluteURL.path() == "/base/directory/thing")
     }
 
 #if FOUNDATION_FRAMEWORK
